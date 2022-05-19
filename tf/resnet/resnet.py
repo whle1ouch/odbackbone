@@ -1,3 +1,4 @@
+from re import X
 from tensorflow.keras import layers
 from tensorflow.keras.models import Model
 from tensorflow.keras import backend as K
@@ -26,19 +27,49 @@ def res_bottle_neck(input, filters, stride=None, name=""):
     else:
         shortcut = input
         
-    h = layers.Add()([h, shortcut])
-    h = layers.ReLU()(h)
+    h = layers.Add(name=name+"_add")([h, shortcut])
+    h = layers.ReLU(name=name+"_out")(h)
     return h
        
 def res_bottle_neck_v2(input, filters, stride=None, name=""):
     channel_in = input.shape[-1]
+    channel_out = filters * 4
+    if stride is None:
+        stride = 1 if channel_in == channel_out else 2
+    h = layers.BatchNormalization(epsilon=1.001e-5, name=name + "_preact_bn")(input)
+    h = layers.ReLU(name=name+"_preact_relu")(h)
     
+    if channel_in != channel_out:
+        shortcut = layers.Conv2D(filters*4, 1, strides=stride, name=name+"_0_conv")(h)
+    else:
+        shortcut = layers.MaxPool2D(1, strides=stride)(h) if stride > 1 else h
+    
+    h = layers.Conv2D(filters, 1, strides=1, use_bias=False, name=name+"_1_conv")(h)
+    h = layers.BatchNormalization(epsilon=1.001e-5, name=name + "_1_bn")(h)
+    h = layers.ReLU(name=name+"_1_relu")(h)
+    
+    h = layers.ZeroPadding2D(padding=((1, 1), (1, 1)), name=name+"_2_pad")(h)
+    h = layers.Conv2D(filters, 3, strides=stride, use_bias=False, name=name+"_2_conv")(h)
+    h = layers.BatchNormalization(epsilon=1.001e-5, name=name+"_2_bn")(h)
+    h = layers.ReLU(name=name+"_2_relu")(h)
+    
+    h = layers.Conv2D(filters*4, 1, strides=1, name=name+"_3_conv")(h)
+    h = layers.Add(name=name+"_out")([shortcut, h])
+    return h
+       
 
 def make_res_block(input, filters, num_residue, init_stride=2, name=""):
     output = res_bottle_neck(input, filters, stride=init_stride, name=name+"_block1")
     for i in range(2, num_residue+1):
         output = res_bottle_neck(output, filters, name=name+"_block"+str(i))
     return output
+
+def make_res_block_v2(input, filters, num_residue, init_stride=2, name=""):
+    h = res_bottle_neck_v2(input, filters, stride=init_stride, name=name+"_block1")
+    for i in range(2, num_residue):
+        h = res_bottle_neck_v2(h, filters, name=name+"_block"+str(i))
+    h = res_bottle_neck_v2(h, filters, stride=init_stride, name=name+"_block"+str(num_residue))
+    return h
 
 def input_block(input):
     # resnet_conv1: (3,3) padding -> 7*7*2 conv2d -> bn -> relu -> (1,1) padding -> 3*3*2 avg pool
@@ -69,6 +100,23 @@ def Resnet50(output_size=1000, name="resnet50"):
     image_input = layers.Input((224, 224, 3))
     output = input_block(image_input)
     output = resnet50_body(output)
+    prediction = head_block(output, output_size)
+    model = Model(image_input, prediction, name=name)
+    return model
+
+def resnet50v2_body(input):
+    output = make_res_block_v2(input, 64, 3, init_stride=1, name="conv2")
+    output = make_res_block_v2(output, 128, 4, name="conv3")
+    output = make_res_block_v2(output, 256, 6, name="conv4")
+    output = make_res_block(output, 512, 3, name="conv5")
+
+    return output
+    
+
+def Resnet50V2(output_size=1000, name="resnet50v2"):
+    image_input = layers.Input((224, 224, 3))
+    output = input_block(image_input)
+    output = resnet50v2_body(output)
     prediction = head_block(output, output_size)
     model = Model(image_input, prediction, name=name)
     return model
@@ -107,8 +155,9 @@ def Resnet152(output_size=1000, name="resnet152"):
 
 
 if __name__ == "__main__":
-    model = Resnet101()
+    model = Resnet50V2()
     model.summary()
     print("------------------build succuss -----------------------")
-    applications.ResNet50V2
+    model2 = applications.ResNet50V2(weights=None)
+    model2.summary()
     
