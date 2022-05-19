@@ -1,4 +1,3 @@
-from unicodedata import name
 import tensorflow as tf
 import torch
 
