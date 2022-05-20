@@ -58,31 +58,37 @@ def res_bottle_neck_v2(input, filters, stride=None, name=""):
     return h
        
 
-def make_res_block(input, filters, num_residue, init_stride=2, name=""):
-    output = res_bottle_neck(input, filters, stride=init_stride, name=name+"_block1")
+def make_res_block(input, filters, num_residue, stride=2, name=""):
+    output = res_bottle_neck(input, filters, stride=stride, name=name+"_block1")
     for i in range(2, num_residue+1):
         output = res_bottle_neck(output, filters, name=name+"_block"+str(i))
     return output
 
-def make_res_block_v2(input, filters, num_residue, init_stride=2, name=""):
-    h = res_bottle_neck_v2(input, filters, stride=init_stride, name=name+"_block1")
+def make_res_block_v2(input, filters, num_residue, stride=2, name=""):
+    h = res_bottle_neck_v2(input, filters, name=name+"_block1")
     for i in range(2, num_residue):
         h = res_bottle_neck_v2(h, filters, name=name+"_block"+str(i))
-    h = res_bottle_neck_v2(h, filters, stride=init_stride, name=name+"_block"+str(num_residue))
+    h = res_bottle_neck_v2(h, filters, stride=stride, name=name+"_block"+str(num_residue))
     return h
 
-def input_block(input):
+def input_block(input, preact=False):
     # resnet_conv1: (3,3) padding -> 7*7*2 conv2d -> bn -> relu -> (1,1) padding -> 3*3*2 avg pool
     output = layers.ZeroPadding2D(3, name="conv1_pad")(input)
     output = layers.Conv2D(64, kernel_size=7, strides=2, name="conv1_conv")(output)
-    output = layers.BatchNormalization(epsilon=1.001e-5, name="conv1_bn")(output)
-    output = layers.ReLU(name="conv1_relu")(output)
+    if not preact:
+        output = layers.BatchNormalization(epsilon=1.001e-5, name="conv1_bn")(output)
+        output = layers.ReLU(name="conv1_relu")(output)
     output = layers.ZeroPadding2D(1, name="pool1_pad")(output)
     output = layers.MaxPool2D(pool_size=3, strides=2, padding="valid", name="pool1_pool")(output)
     return output
 
-def head_block(input, output_size):
-    output = layers.GlobalAveragePooling2D(name="avg_pool")(input)
+def head_block(input, output_size, preact=False):
+    if preact:
+        h = layers.BatchNormalization(epsilon=1.001e-5, name="conv1_bn")(input)
+        h = layers.ReLU(name="conv1_relu")(h)
+    else:
+        h = input
+    output = layers.GlobalAveragePooling2D(name="avg_pool")(h)
     logit = layers.Dense(output_size)(output)
     prediction = layers.Softmax()(logit)
     return prediction
@@ -105,24 +111,24 @@ def Resnet50(output_size=1000, name="resnet50"):
     return model
 
 def resnet50v2_body(input):
-    output = make_res_block_v2(input, 64, 3, init_stride=1, name="conv2")
+    output = make_res_block_v2(input, 64, 3, name="conv2")
     output = make_res_block_v2(output, 128, 4, name="conv3")
     output = make_res_block_v2(output, 256, 6, name="conv4")
-    output = make_res_block(output, 512, 3, name="conv5")
+    output = make_res_block(output, 512, 3, stride=1, name="conv5")
 
     return output
     
 
 def Resnet50V2(output_size=1000, name="resnet50v2"):
     image_input = layers.Input((224, 224, 3))
-    output = input_block(image_input)
+    output = input_block(image_input, True)
     output = resnet50v2_body(output)
-    prediction = head_block(output, output_size)
+    prediction = head_block(output, output_size, True)
     model = Model(image_input, prediction, name=name)
     return model
     
 def resnet101_body(input):
-    output = make_res_block(input, 64, 3, init_stride=1, name="conv2")
+    output = make_res_block(input, 64, 3, stride=1, name="conv2")
     output = make_res_block(output, 128, 4, name="conv3")
     output = make_res_block(output, 256, 23, name="conv4")
     output = make_res_block(output, 512, 3, name="conv5")
@@ -158,6 +164,5 @@ if __name__ == "__main__":
     model = Resnet50V2()
     model.summary()
     print("------------------build succuss -----------------------")
-    model2 = applications.ResNet50V2(weights=None)
-    model2.summary()
+    
     
