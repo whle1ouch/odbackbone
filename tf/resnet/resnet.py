@@ -1,11 +1,22 @@
-from re import X
 from tensorflow.keras import layers
 from tensorflow.keras.models import Model
-from tensorflow.keras import backend as K
-from tensorflow.keras import applications
+
 
 
 def res_bottle_neck(input, filters, stride=None, name=""):
+    """
+    resnet v1- residue block from the paper, including 3 convolution respectively '1*1' -> '3*3'->'1*1', and one shortcut between
+    input and final convolution output 
+
+    Args:
+        input (_type_): _description_
+        filters (_type_): _description_
+        stride (_type_, optional): _description_. Defaults to None.
+        name (str, optional): _description_. Defaults to "".
+
+    Returns:
+        _type_: _description_
+    """
     channel_in = input.shape[-1]
     channel_out = filters * 4
     if stride is None:
@@ -35,14 +46,14 @@ def res_bottle_neck_v2(input, filters, stride=None, name=""):
     channel_in = input.shape[-1]
     channel_out = filters * 4
     if stride is None:
-        stride = 1 if channel_in == channel_out else 2
+        stride = 1
     h = layers.BatchNormalization(epsilon=1.001e-5, name=name + "_preact_bn")(input)
     h = layers.ReLU(name=name+"_preact_relu")(h)
     
     if channel_in != channel_out:
-        shortcut = layers.Conv2D(filters*4, 1, strides=stride, name=name+"_0_conv")(h)
+        shortcut = layers.Conv2D(channel_out, 1, strides=stride, name=name+"_0_conv")(h)
     else:
-        shortcut = layers.MaxPool2D(1, strides=stride)(h) if stride > 1 else h
+        shortcut = layers.MaxPool2D(1, strides=stride)(h) if stride > 1 else input
     
     h = layers.Conv2D(filters, 1, strides=1, use_bias=False, name=name+"_1_conv")(h)
     h = layers.BatchNormalization(epsilon=1.001e-5, name=name + "_1_bn")(h)
@@ -53,7 +64,7 @@ def res_bottle_neck_v2(input, filters, stride=None, name=""):
     h = layers.BatchNormalization(epsilon=1.001e-5, name=name+"_2_bn")(h)
     h = layers.ReLU(name=name+"_2_relu")(h)
     
-    h = layers.Conv2D(filters*4, 1, strides=1, name=name+"_3_conv")(h)
+    h = layers.Conv2D(channel_out, 1, strides=1, name=name+"_3_conv")(h)
     h = layers.Add(name=name+"_out")([shortcut, h])
     return h
        
@@ -72,6 +83,16 @@ def make_res_block_v2(input, filters, num_residue, stride=2, name=""):
     return h
 
 def input_block(input, preact=False):
+    """
+    simple inplement for ResNet input block of reading image data to the network,
+
+    Args:
+        input (_type_): _description_
+        preact (bool, optional): _description_. Defaults to False.
+
+    Returns:
+        _type_: _description_
+    """
     # resnet_conv1: (3,3) padding -> 7*7*2 conv2d -> bn -> relu -> (1,1) padding -> 3*3*2 avg pool
     output = layers.ZeroPadding2D(3, name="conv1_pad")(input)
     output = layers.Conv2D(64, kernel_size=7, strides=2, name="conv1_conv")(output)
@@ -93,67 +114,63 @@ def head_block(input, output_size, preact=False):
     prediction = layers.Softmax()(logit)
     return prediction
 
-def resnet50_body(input):
+def resnet_body(input, residue_nums, stride_nums, preact=False):
+    assert len(residue_nums) == len(stride_nums), "resudue num is confused"
+    n = len(residue_nums)
+    init_filters = 64
+    h = input
+    block_func = make_res_block_v2 if preact else make_res_block
+    for i in range(n):
+        h = block_func(h, init_filters, residue_nums[i], stride_nums[i], name="conv"+str(i+2))
+        init_filters *= 2
+    return h
     
-    output = make_res_block(input, 64, 3, init_stride=1, name="conv2")
-    output = make_res_block(output, 128, 4, name="conv3")
-    output = make_res_block(output, 256, 6, name="conv4")
-    output = make_res_block(output, 512, 3, name="conv5")
 
-    return output
-    
 def Resnet50(output_size=1000, name="resnet50"):
     image_input = layers.Input((224, 224, 3))
     output = input_block(image_input)
-    output = resnet50_body(output)
+    output = resnet_body(output, [3, 4, 6, 3], [1, 2, 2, 2], False)
     prediction = head_block(output, output_size)
     model = Model(image_input, prediction, name=name)
     return model
-
-def resnet50v2_body(input):
-    output = make_res_block_v2(input, 64, 3, name="conv2")
-    output = make_res_block_v2(output, 128, 4, name="conv3")
-    output = make_res_block_v2(output, 256, 6, name="conv4")
-    output = make_res_block(output, 512, 3, stride=1, name="conv5")
-
-    return output
-    
 
 def Resnet50V2(output_size=1000, name="resnet50v2"):
     image_input = layers.Input((224, 224, 3))
     output = input_block(image_input, True)
-    output = resnet50v2_body(output)
+    output = resnet_body(output, [3, 4, 6, 3], [2, 2, 2, 1], True)
     prediction = head_block(output, output_size, True)
     model = Model(image_input, prediction, name=name)
     return model
-    
-def resnet101_body(input):
-    output = make_res_block(input, 64, 3, stride=1, name="conv2")
-    output = make_res_block(output, 128, 4, name="conv3")
-    output = make_res_block(output, 256, 23, name="conv4")
-    output = make_res_block(output, 512, 3, name="conv5")
-    return output
-    
+
 def Resnet101(output_size=1000, name="resnet101"):
     image_input = layers.Input((224, 224, 3))
     output = input_block(image_input)
-    output = resnet101_body(output)
+    output = resnet_body(output, [3, 4, 23, 3], [1, 2, 2, 2], False)
     prediction = head_block(output, output_size)
     model = Model(image_input, prediction, name=name)
     return model
 
-def resnet152_body(input):
-    output = make_res_block(input, 64, 3, init_stride=1, name="conv2")
-    output = make_res_block(output, 128, 8, name="conv3")
-    output = make_res_block(output, 256, 36, name="conv4")
-    output = make_res_block(output, 512, 3, name="conv5")
-    return output
+def Resnet101V2(output_size=1000, name="resnet101v2"):
+    image_input = layers.Input((224, 224, 3))
+    output = input_block(image_input, True)
+    output = resnet_body(output, [3, 4, 23, 3], [2, 2, 2, 1], True)
+    prediction = head_block(output, output_size, True)
+    model = Model(image_input, prediction, name=name)
+    return model
 
 def Resnet152(output_size=1000, name="resnet152"):
     image_input = layers.Input((224, 224, 3))
     output = input_block(image_input)
-    output = resnet152_body(output)
+    output = resnet_body(output, [3, 8, 36, 3], [1, 2, 2, 2], False)
     prediction = head_block(output, output_size)
+    model = Model(image_input, prediction, name=name)
+    return model
+
+def Resnet152V2(output_size=1000, name="resnet152v2"):
+    image_input = layers.Input((224, 224, 3))
+    output = input_block(image_input, True)
+    output = resnet_body(output, [3, 8, 36, 3], [2, 2, 2, 1], True)
+    prediction = head_block(output, output_size, True)
     model = Model(image_input, prediction, name=name)
     return model
     
@@ -161,8 +178,6 @@ def Resnet152(output_size=1000, name="resnet152"):
 
 
 if __name__ == "__main__":
-    model = Resnet50V2()
+    model = Resnet152V2()
     model.summary()
     print("------------------build succuss -----------------------")
-    
-    

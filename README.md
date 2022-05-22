@@ -1,5 +1,5 @@
 ## Introduction
-this repository collects some simple implementation of wild known network for task of object detection, including tensorflow version and pytorch version.
+this repository collects some simple implementation of wild known network for task of object detection, but also can be used in other cv tasks like image classification, pose detection, face detection , etc, and including tensorflow version and pytorch version.
 
 and will be continously updating.
 
