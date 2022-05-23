@@ -1,9 +1,9 @@
 from tensorflow.keras import layers
 from tensorflow.keras.models import Model
+from tensorflow.keras import backend as K
 
 
-
-def res_bottle_neck(input, filters, stride=None, name=""):
+def res_bottle_neck(inputs, filters, stride=None, name=""):
     """
     resnet v1- residue block from the paper, including 3 convolution respectively '1*1' -> '3*3'->'1*1', and one shortcut between
     input and final convolution output 
@@ -17,11 +17,11 @@ def res_bottle_neck(input, filters, stride=None, name=""):
     Returns:
         _type_: _description_
     """
-    channel_in = input.shape[-1]
+    channel_in = K.int_shape(inputs)[-1]
     channel_out = filters * 4
     if stride is None:
         stride = 1 if channel_in == channel_out else 2
-    h = layers.Conv2D(filters, 1,  strides=stride, padding="same", name=name+"_1_conv")(input)
+    h = layers.Conv2D(filters, 1,  strides=stride, padding="same", name=name+"_1_conv")(inputs)
     h = layers.BatchNormalization(epsilon=1.001e-5,  name=name+"_1_bn")(h)
     h = layers.ReLU(name=name+"_1_relu")(h)
     
@@ -33,27 +33,27 @@ def res_bottle_neck(input, filters, stride=None, name=""):
     h = layers.BatchNormalization(name=name+"_3_bn")(h)
     
     if channel_in != channel_out:
-        shortcut = layers.Conv2D(channel_out, 1, strides=stride, padding="same", name=name+"_0_conv")(input)
+        shortcut = layers.Conv2D(channel_out, 1, strides=stride, padding="same", name=name+"_0_conv")(inputs)
         shortcut = layers.BatchNormalization(epsilon=1.001e-5, name=name+"_0_bn")(shortcut)
     else:
-        shortcut = input
+        shortcut = inputs
         
     h = layers.Add(name=name+"_add")([h, shortcut])
     h = layers.ReLU(name=name+"_out")(h)
     return h
        
-def res_bottle_neck_v2(input, filters, stride=None, name=""):
-    channel_in = input.shape[-1]
+def res_bottle_neck_v2(inputs, filters, stride=None, name=""):
+    channel_in = K.int_shape(inputs)[-1]
     channel_out = filters * 4
     if stride is None:
         stride = 1
-    h = layers.BatchNormalization(epsilon=1.001e-5, name=name + "_preact_bn")(input)
+    h = layers.BatchNormalization(epsilon=1.001e-5, name=name + "_preact_bn")(inputs)
     h = layers.ReLU(name=name+"_preact_relu")(h)
     
     if channel_in != channel_out:
         shortcut = layers.Conv2D(channel_out, 1, strides=stride, name=name+"_0_conv")(h)
     else:
-        shortcut = layers.MaxPool2D(1, strides=stride)(h) if stride > 1 else input
+        shortcut = layers.MaxPool2D(1, strides=stride)(h) if stride > 1 else inputs
     
     h = layers.Conv2D(filters, 1, strides=1, use_bias=False, name=name+"_1_conv")(h)
     h = layers.BatchNormalization(epsilon=1.001e-5, name=name + "_1_bn")(h)
@@ -69,32 +69,32 @@ def res_bottle_neck_v2(input, filters, stride=None, name=""):
     return h
        
 
-def make_res_block(input, filters, num_residue, stride=2, name=""):
-    output = res_bottle_neck(input, filters, stride=stride, name=name+"_block1")
+def make_res_block(inputs, filters, num_residue, stride=2, name=""):
+    output = res_bottle_neck(inputs, filters, stride=stride, name=name+"_block1")
     for i in range(2, num_residue+1):
         output = res_bottle_neck(output, filters, name=name+"_block"+str(i))
     return output
 
-def make_res_block_v2(input, filters, num_residue, stride=2, name=""):
-    h = res_bottle_neck_v2(input, filters, name=name+"_block1")
+def make_res_block_v2(inputs, filters, num_residue, stride=2, name=""):
+    h = res_bottle_neck_v2(inputs, filters, name=name+"_block1")
     for i in range(2, num_residue):
         h = res_bottle_neck_v2(h, filters, name=name+"_block"+str(i))
     h = res_bottle_neck_v2(h, filters, stride=stride, name=name+"_block"+str(num_residue))
     return h
 
-def input_block(input, preact=False):
+def input_block(inputs, preact=False):
     """
     simple inplement for ResNet input block of reading image data to the network,
 
     Args:
-        input (_type_): _description_
+        inputs (_type_): _description_
         preact (bool, optional): _description_. Defaults to False.
 
     Returns:
         _type_: _description_
     """
     # resnet_conv1: (3,3) padding -> 7*7*2 conv2d -> bn -> relu -> (1,1) padding -> 3*3*2 avg pool
-    output = layers.ZeroPadding2D(3, name="conv1_pad")(input)
+    output = layers.ZeroPadding2D(3, name="conv1_pad")(inputs)
     output = layers.Conv2D(64, kernel_size=7, strides=2, name="conv1_conv")(output)
     if not preact:
         output = layers.BatchNormalization(epsilon=1.001e-5, name="conv1_bn")(output)
@@ -103,22 +103,22 @@ def input_block(input, preact=False):
     output = layers.MaxPool2D(pool_size=3, strides=2, padding="valid", name="pool1_pool")(output)
     return output
 
-def head_block(input, output_size, preact=False):
+def head_block(inputs, output_size, preact=False):
     if preact:
-        h = layers.BatchNormalization(epsilon=1.001e-5, name="conv1_bn")(input)
+        h = layers.BatchNormalization(epsilon=1.001e-5, name="conv1_bn")(inputs)
         h = layers.ReLU(name="conv1_relu")(h)
     else:
-        h = input
+        h = inputs
     output = layers.GlobalAveragePooling2D(name="avg_pool")(h)
     logit = layers.Dense(output_size)(output)
     prediction = layers.Softmax()(logit)
     return prediction
 
-def resnet_body(input, residue_nums, stride_nums, preact=False):
+def resnet_body(inputs, residue_nums, stride_nums, preact=False):
     assert len(residue_nums) == len(stride_nums), "resudue num is confused"
     n = len(residue_nums)
     init_filters = 64
-    h = input
+    h = inputs
     block_func = make_res_block_v2 if preact else make_res_block
     for i in range(n):
         h = block_func(h, init_filters, residue_nums[i], stride_nums[i], name="conv"+str(i+2))
