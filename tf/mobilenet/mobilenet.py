@@ -9,22 +9,30 @@ def input_block(inputs, filters, stride):
     h = layers.ReLU(max_value=6., name="conv1_relu6")(h)
     return h
     
-def output_block(inputs, output_size):
-    h = layers.GlobalAveragePooling2D(name="global_avg_pool")(inputs)
-    filters = h.shape[-1]
-    h = layers.Reshape((1, 1, filters), name="reshape_1")(h)
-    h = layers.Dropout(rate=0.2, name="dropout")(h)
-    h = layers.Conv2D(output_size, 1, name="conv_preds")(h)
-    h = layers.Reshape((output_size,), name="reshape_2")(h)
-    h = layers.Softmax(name="predictions")(h)
+def output_block(inputs, output_size, include_top):
+    if include_top:
+        h = layers.GlobalAveragePooling2D(name="global_avg_pool")(inputs)
+        filters = h.shape[-1]
+        h = layers.Reshape((1, 1, filters), name="reshape_1")(h)
+        h = layers.Dropout(rate=0.2, name="dropout")(h)
+        h = layers.Conv2D(output_size, 1, name="conv_preds")(h)
+        h = layers.Reshape((output_size,), name="reshape_2")(h)
+        h = layers.Softmax(name="predictions")(h)
+    else:
+        h = layers.GlobalAveragePooling2D()(inputs)
     return h
 
-def output_block_v2(inputs, output_size):
+def output_block_v2(inputs, output_size,  last_block_filters, include_top):
+    if last_block_filters is None:
+        last_block_filters = 1280
     h = layers.Conv2D(1280, 1, 1, use_bias=False, name="conv_1")(inputs)
     h = layers.BatchNormalization(epsilon=1.001e-5, name="conv_1_bn")(h)
     h = layers.ReLU(max_value=6., name="out_relu")(h)
-    h = layers.GlobalAveragePooling2D(name="global_avg_pool")(h)
-    h = layers.Dense(output_size, name="predictions")(h)
+    if include_top:
+        h = layers.GlobalAveragePooling2D(name="global_avg_pool")(h)
+        h = layers.Dense(output_size, name="predictions")(h)
+    else:
+        h = layers.GlobalAveragePooling2D()(h)
     return h
     
 def mobilenet_block(inputs, filters, stride, block_id=None):
@@ -64,7 +72,7 @@ def mobilenet_block_v2(inputs, filters, stride, block_id=0):
     return h
 
 
-def Mobilenet(output_size=1000, name="MobileNet"):
+def Mobilenet(output_size=1000, include_top=True, name="MobileNet"):
     """
     a simple inplement of mobilenet, the filters and strides are all from the paper
 
@@ -82,12 +90,12 @@ def Mobilenet(output_size=1000, name="MobileNet"):
     output = input_block(inputs, filters[0], strides[0])
     for i in range(1, n):
         output = mobilenet_block(output, filters[i], strides[i], block_id=i)
-    pred = output_block(output, output_size)
+    pred = output_block(output, output_size, include_top)
     model = Model(inputs, pred, name=name)
     return model
         
     
-def MobilenetV2(output_size=1000, name="MobileNetV2"):
+def MobilenetV2(output_size=1000, include_top=True, name="MobileNetV2"):
     """
     a simple inplement of mobilenet v2, the filters and strides are all from the paper
 
@@ -102,7 +110,7 @@ def MobilenetV2(output_size=1000, name="MobileNetV2"):
     output = input_block(inputs, filters[0], strides[0])
     for i in range(1, n):
         output = mobilenet_block_v2(output, filters[i], strides[i], block_id=i-1)
-    pred = output_block_v2(output, output_size)
+    pred = output_block_v2(output, output_size, 1280, include_top)
     model = Model(inputs, pred, name=name)
     return model
         

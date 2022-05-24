@@ -103,7 +103,7 @@ def input_block(inputs, preact=False):
     output = layers.MaxPool2D(pool_size=3, strides=2, padding="valid", name="pool1_pool")(output)
     return output
 
-def head_block(inputs, output_size, preact=False):
+def output_block(inputs, output_size, preact, include_top):
     if preact:
         h = layers.BatchNormalization(epsilon=1.001e-5, name="conv1_bn")(inputs)
         h = layers.ReLU(name="conv1_relu")(h)
@@ -126,51 +126,51 @@ def resnet_body(inputs, residue_nums, stride_nums, preact=False):
     return h
     
 
-def Resnet50(output_size=1000, name="resnet50"):
+def Resnet50(output_size=1000, include_top=True, name="resnet50"):
     image_input = layers.Input((224, 224, 3))
     output = input_block(image_input)
     output = resnet_body(output, [3, 4, 6, 3], [1, 2, 2, 2], False)
-    prediction = head_block(output, output_size)
+    prediction = output_block(output, output_size, False, include_top)
     model = Model(image_input, prediction, name=name)
     return model
 
-def Resnet50V2(output_size=1000, name="resnet50v2"):
+def Resnet50V2(output_size=1000, include_top=True, name="resnet50v2"):
     image_input = layers.Input((224, 224, 3))
     output = input_block(image_input, True)
     output = resnet_body(output, [3, 4, 6, 3], [2, 2, 2, 1], True)
-    prediction = head_block(output, output_size, True)
+    prediction = output_block(output, output_size, True, include_top)
     model = Model(image_input, prediction, name=name)
     return model
 
-def Resnet101(output_size=1000, name="resnet101"):
+def Resnet101(output_size=1000, include_top=True, name="resnet101"):
     image_input = layers.Input((224, 224, 3))
     output = input_block(image_input)
     output = resnet_body(output, [3, 4, 23, 3], [1, 2, 2, 2], False)
-    prediction = head_block(output, output_size)
+    prediction = output_block(output, output_size, False, include_top)
     model = Model(image_input, prediction, name=name)
     return model
 
-def Resnet101V2(output_size=1000, name="resnet101v2"):
+def Resnet101V2(output_size=1000, include_top=True, name="resnet101v2"):
     image_input = layers.Input((224, 224, 3))
     output = input_block(image_input, True)
     output = resnet_body(output, [3, 4, 23, 3], [2, 2, 2, 1], True)
-    prediction = head_block(output, output_size, True)
+    prediction = output_block(output, output_size, True, include_top)
     model = Model(image_input, prediction, name=name)
     return model
 
-def Resnet152(output_size=1000, name="resnet152"):
+def Resnet152(output_size=1000, include_top=True, name="resnet152"):
     image_input = layers.Input((224, 224, 3))
     output = input_block(image_input)
     output = resnet_body(output, [3, 8, 36, 3], [1, 2, 2, 2], False)
-    prediction = head_block(output, output_size)
+    prediction = output_block(output, output_size, False, include_top)
     model = Model(image_input, prediction, name=name)
     return model
 
-def Resnet152V2(output_size=1000, name="resnet152v2"):
+def Resnet152V2(output_size=1000, include_top=True, name="resnet152v2"):
     image_input = layers.Input((224, 224, 3))
     output = input_block(image_input, True)
     output = resnet_body(output, [3, 8, 36, 3], [2, 2, 2, 1], True)
-    prediction = head_block(output, output_size, True)
+    prediction = output_block(output, output_size, True, include_top)
     model = Model(image_input, prediction, name=name)
     return model
     
