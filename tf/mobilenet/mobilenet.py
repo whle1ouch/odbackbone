@@ -36,6 +36,19 @@ def output_block_v2(inputs, output_size,  last_block_filters, include_top):
     return h
     
 def mobilenet_block(inputs, filters, stride, block_id=None):
+    """
+    bottleneck block of mobile net, including a depthwise convolution and a custom 1x1 convolution, 
+    that could reduce the parameters.
+
+    Args:
+        inputs (tf.Tensor): input tensor
+        filters (int): output filters
+        stride (int or tuple(int, int)): depthwise convolution's stride
+        block_id (int or None): block id used in block name's prefix
+
+    Returns:
+        tf.Tensor: output
+    """
     if block_id:
         block_title = str(block_id)
     else:
@@ -49,6 +62,18 @@ def mobilenet_block(inputs, filters, stride, block_id=None):
     return h
 
 def mobilenet_block_v2(inputs, filters, stride, block_id=0):
+    """
+    bottleneck block of mobile net v2, the main difference from v1 version is introducing the residue connection.
+
+    Args:
+        inputs (tf.Tensor): input tensor
+        filters (int): output filters
+        stride (int or tuple(int, int)): depthwise convolution's stride
+        block_id (int or None): block id used in block name's prefix
+
+    Returns:
+        tf.Tensor: output
+    """
     channel_in = K.int_shape(inputs)[-1]
     if block_id: 
         prefix = f"block_{block_id}"
