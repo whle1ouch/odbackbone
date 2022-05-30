@@ -104,7 +104,7 @@ def block(inputs,
     filters = filters_in * expand_ratio
     if expand_ratio != 1:
         h = layers.Conv2D(filters, 1, padding="same", use_bias=False, name=name+"expand_conv")(inputs)
-        h = layers.BatchNormalization(name+name+"expand_bn")(h)
+        h = layers.BatchNormalization(name=name+"expand_bn")(h)
         h = layers.Activation(activation, name=name+"expand_ac")(h)
     else:
         h = inputs
@@ -123,7 +123,7 @@ def block(inputs,
         se = layers.Conv2D(filters_se, 1, padding="same", activation=activation, 
                            name=name+"se_reduce")(se)
         se = layers.Conv2D(filters, 1, padding="same", activation="sigmoid", name=name+"se_expand")(se)
-        h = layers.Multiply(name="se_excite")([h, se])
+        h = layers.Multiply(name=name+"se_excite")([h, se])
     
     h = layers.Conv2D(filters_out, 1, padding="same", use_bias=False, name=name+"project_conv")(h)
     h = layers.BatchNormalization(name=name+"project_bn")(h)
@@ -163,7 +163,7 @@ def efficient_block(inputs, width_coefficient, depth_coefficient, blocks_args,
         
     return h
 
-def ouputs_block(inputs, width_coefficient, output_size, include_top, activation, drop_rate, depth_divisor=8):
+def outputs_block(inputs, width_coefficient, output_size, include_top, activation, drop_rate, depth_divisor=8):
     h = layers.Conv2D(round_filters(1280 * width_coefficient, depth_divisor), 1, padding="same", 
                       use_bias=False, name="top_conv")(inputs)
     h = layers.BatchNormalization(name="top_bn")(h)
@@ -176,30 +176,42 @@ def ouputs_block(inputs, width_coefficient, output_size, include_top, activation
         h = layers.Softmax(name="prediction")(h)
     return h
 
-def _efficient_net(width_coefficient, depth_coefficient, input_size, dropout_rate, include_top, output_size, name):
-    ...
+def _efficient_net(width_coefficient, depth_coefficient, input_size, dropout_rate,
+                   include_top, output_size, name, blocks_args=DEFAULT_BLOCKS_ARGS, 
+                   activation="swish", depth_divisor=8):
+    inputs = layers.Input((input_size, input_size, 3))
+    h = input_block(inputs, width_coefficient, activation, depth_divisor)
+    h = efficient_block(h, width_coefficient, depth_coefficient, blocks_args, 
+                    activation, drop_connect_rate=dropout_rate, depth_divisor=depth_divisor)
+    pred = outputs_block(h, width_coefficient, output_size, include_top, activation, dropout_rate, depth_divisor)
+    model = Model(inputs, pred, name=name)
+    return model
 
-def EfficientnetB0():
-    ...
+def EfficientnetB0(include_top=True, output_size=1000, name="EfficientNetB0"):
+    return _efficient_net(1.0, 1.0, 224, 0.2, include_top, output_size, name)
 
-def EfficientnetB1():
-    ...
-    
-def EfficientnetB2():
-    ...
-    
-def EfficientnetB3():
-    ...
-    
-def EfficientnetB4():
-    ...
-    
-def EfficientnetB5():
-    ...
-    
-def EfficientnetB6():
-    ...
-    
-def EfficientnetB7():
-    ...
-    
+def EfficientnetB1(include_top=True, output_size=1000, name="EfficientNetB1"):
+    return _efficient_net(1.0, 1.1, 240, 0.2, include_top, output_size, name)
+
+def EfficientnetB2(include_top=True, output_size=1000, name="EfficientNetB2"):
+    return _efficient_net(1.1, 1.2, 260, 0.3, include_top, output_size, name)
+
+def EfficientnetB3(include_top=True, output_size=1000, name="EfficientNetB3"):
+    return _efficient_net(1.2, 1.4, 300, 0.3, include_top, output_size, name)
+
+def EfficientnetB4(include_top=True, output_size=1000, name="EfficientNetB4"):
+    return _efficient_net(1.4, 1.8, 380, 0.4, include_top, output_size, name)
+
+def EfficientnetB5(include_top=True, output_size=1000, name="EfficientNetB5"):
+    return _efficient_net(1.6, 2.2, 456, 0.4, include_top, output_size, name)
+
+def EfficientnetB6(include_top=True, output_size=1000, name="EfficientNetB6"):
+    return _efficient_net(1.8, 2.6, 528, 0.5, include_top, output_size, name)
+
+def EfficientnetB7(include_top=True, output_size=1000, name="EfficientNetB7"):
+    return _efficient_net(2.0, 3.1, 600, 0.5, include_top, output_size, name)
+
+
+if __name__ == "__main__":
+    model = EfficientnetB0()
+    model.summary()
