@@ -9,13 +9,13 @@ def res_bottle_neck(inputs, filters, stride=None, name=""):
     input and final convolution output 
 
     Args:
-        input (_type_): _description_
-        filters (_type_): _description_
-        stride (_type_, optional): _description_. Defaults to None.
+        input (tf.Tensor): _description_
+        filters (int): _description_
+        stride (int, tuple(int), None, optional): conv stride.  Defaults to None.
         name (str, optional): _description_. Defaults to "".
 
     Returns:
-        _type_: _description_
+        tf.Tensor: output tensor
     """
     channel_in = K.int_shape(inputs)[-1]
     channel_out = filters * 4
@@ -178,6 +178,6 @@ def Resnet152V2(output_size=1000, include_top=True, name="resnet152v2"):
 
 
 if __name__ == "__main__":
-    model = Resnet152V2()
+    model = Resnet50()
     model.summary()
     print("------------------build succuss -----------------------")
