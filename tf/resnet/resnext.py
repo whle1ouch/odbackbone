@@ -1,3 +1,4 @@
+from cv2 import groupRectangles
 from pip import main
 from tensorflow.keras import layers
 from tensorflow.keras.models import Model
@@ -57,13 +58,8 @@ def resnext_block_v2(inputs, C, filters_d, filters_out, strides=1, name=None):
 
 def resnext_block_v3(inputs, C, filters_d, filters_out, strides=1, name=None):
     prefix = "res" if name is None else name
-    hs = []
     pre = ConvBnRelu2D(filters_d * C, 1, strides=strides, name=name+"_conv1")(inputs)
-    for i in range(1, C+1):
-        name = prefix + "_c" + str(i)
-        h = ConvBnRelu2D(filters_d * C, 3, name=name+"_conv")(pre)
-        hs.append(h)
-    h = layers.Add(name=prefix+"_merge")(hs)
+    h = ConvBnRelu2D(filters_d * C, 3, name=name+"_group_conv", groups=C)(pre)
     h = ConvBnRelu2D(filters_out, 1, name=name+"_conv2")(h)
     if strides == 1 and K.int_shape(inputs)[-1] == filters_out:
         shortcut = inputs
