@@ -178,6 +178,6 @@ def Resnet152V2(output_size=1000, include_top=True, name="resnet152v2"):
 
 
 if __name__ == "__main__":
-    model = Resnet50()
+    model = Resnet152V2()
     model.summary()
     print("------------------build succuss -----------------------")

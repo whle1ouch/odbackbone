@@ -115,7 +115,5 @@ def Densenet201(output_size=1000, include_top=True, name="DenseNet201"):
     return _densenet(blocks, 64, output_size, 32, None, include_top, name)
     
 if __name__ == "__main__":
-    model1 = Densenet121()
-    print(model1.count_params())
-    model2 = applications.DenseNet121(weights=None)
-    print(model2.count_params())
+    model = Densenet201()
+    model.summary()

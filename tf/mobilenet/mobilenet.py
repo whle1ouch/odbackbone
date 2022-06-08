@@ -82,7 +82,7 @@ def mobilenet_block_v2(inputs, filters, stride, block_id=0):
         h = layers.ReLU(max_value=6, name=prefix+"_expand_relu6")(h)
     else:
         prefix = "expand_conv"
-        h = input
+        h = inputs
     
     h = layers.ZeroPadding2D(padding=(1, 1), name=prefix+"_pad")(h)
     h = layers.DepthwiseConv2D(3, strides=stride, use_bias=False, name=prefix+"_dw")(h)
@@ -93,7 +93,7 @@ def mobilenet_block_v2(inputs, filters, stride, block_id=0):
     h = layers.BatchNormalization(epsilon=1.001e-5, name=prefix+"_project_bn")(h)
     
     if stride == 1 and channel_in == filters:
-        h = layers.Add(name=prefix+"_add")([h, input])
+        h = layers.Add(name=prefix+"_add")([h, inputs])
     return h
 
 
@@ -141,5 +141,5 @@ def MobilenetV2(output_size=1000, include_top=True, name="MobileNetV2"):
         
 
 if __name__  == "__main__":
-    model = Mobilenet()
+    model = MobilenetV2()
     model.summary()

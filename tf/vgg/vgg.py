@@ -47,5 +47,5 @@ def VGG19(output_size=1000, include_top=True, name="VGG19"):
     return model
 
 if __name__ == "__main__":
-    model = VGG16()
+    model = VGG19()
     model.summary()
