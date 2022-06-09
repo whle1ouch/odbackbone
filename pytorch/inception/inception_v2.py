@@ -68,6 +68,34 @@ class InceptionV2(nn.Module):
             ConvBn(64, 192, 3, 1, 1),
             nn.MaxPool2d(3, 2, 1)
         ))
-        self.add_module("inception_3a", InceptionV2Block(192, [64, 96, 128, 16, 32, 32]))
-        self.add_module("inception_3b", InceptionV2Block(256, [128, 128, 192, 32, 96, 64]))
-        self.add_module("inception_3c", InceptionV2Block(480, [192, 96, 208, 16, 48, 64], downsample=True))    
+        self.add_module("inception_3a", InceptionV2Block(192, [64, 64, 64, 64, 96, 32]))
+        self.add_module("inception_3b", InceptionV2Block(256, [64, 64, 64, 64, 96, 32]))
+        self.add_module("inception_3c", InceptionV2Block(256, [128, 160, 64, 96], downsample=True))    
+        
+        self.add_module("inception_4a", InceptionV2Block(512, [224, 64, 96, 96, 128, 128]))
+        self.add_module("inception_4b", InceptionV2Block(576, [192, 96, 128, 96, 128, 128]))
+        self.add_module("inception_4c", InceptionV2Block(576, [160, 128, 160, 128, 160, 96]))
+        self.add_module("inception_4d", InceptionV2Block(576, [96, 128, 192, 160, 192, 96]))
+        self.add_module("inception_4e", InceptionV2Block(576, [128, 192, 192, 256], downsample=True))
+        
+        self.add_module("inception_5a", InceptionV2Block(1024, [352, 192, 320, 160, 224, 128]))
+        self.add_module("inception_5b", InceptionV2Block(1024, [352, 192, 320, 192, 224, 128]))
+        
+        self.add_module("classifier", nn.Sequential(
+            nn.AvgPool2d(7, 1),
+            nn.Dropout(0.2),
+            nn.Flatten(),
+            nn.Linear(1024, num_classs),
+            nn.Softmax()
+        ))
+        
+    def forward(self, x):
+        for module in self.children():
+            x = module(x)
+        return x
+    
+    
+if __name__ == "__main__":
+    model = InceptionV2()
+    summary(model, (3, 224, 224))
+    
