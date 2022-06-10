@@ -1,4 +1,3 @@
-from turtle import forward
 import torch 
 import torch.nn as nn
 from torchsummary import summary
@@ -112,4 +111,6 @@ class ResNetFPN(nn.Module):
         return [fpn1, fpn2, fpn3, fpn4, fpn5]
 
     
-  
+if __name__ == "__main__":
+    model = ResNetFPN()
+    summary(model, (3, 600, 600))
