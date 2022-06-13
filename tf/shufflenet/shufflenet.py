@@ -1,30 +1,32 @@
 from tensorflow.keras import layers
 from tensorflow.keras.models import Model
 from tensorflow.keras import backend as K
-import numpy as np
 
 
 def shuffle_channels(inputs, groups):
+    print(K.int_shape(inputs))
     batch, height, width, in_channels = K.int_shape(inputs)
     group_channels = in_channels // groups
-    h = K.reshape(inputs, (batch, height, width, groups, group_channels))
+    h = K.reshape(inputs, (-1, height, width, groups, group_channels))
     h = K.permute_dimensions(h, (0, 1, 2, 4, 3))
-    h = K.reshape(h, (batch, height, width, in_channels))
+    h = K.reshape(h, (-1, height, width, in_channels))
     return h
 
 def shuffle_block_v1(inputs, mid_filters, filters, kernel_size, groups, first_group, strides):
-    if strides == 2 or strides == (2, 2):
+    if strides == 2 or strides == (2,  2):
         shortcut = layers.AveragePooling2D(3, 2, padding="same")(inputs)
+        out_filters = filters - K.int_shape(inputs)[-1]
     else:
         shortcut = inputs
+        out_filters = filters
     h = layers.Conv2D(mid_filters, 1, 1, groups=1 if first_group else groups, use_bias=False)(inputs)
     h = layers.BatchNormalization()(h)
     h = layers.ReLU()(h)
-    h = layers.Conv2D(mid_filters, kernel_size, 1, groups=mid_filters, padding="same", use_bias=False)(h)
+    h = layers.Conv2D(mid_filters, kernel_size, strides, groups=mid_filters, padding="same", use_bias=False)(h)
     h = layers.BatchNormalization()(h)
     if groups > 1:
         h = shuffle_channels(h, groups)
-    h = layers.Conv2D(filters, 1, 1, groups=groups, bias=False)(h)
+    h = layers.Conv2D(out_filters, 1, 1, groups=groups, use_bias=False)(h)
     h = layers.BatchNormalization()(h)
     if strides == 2 or strides == (2, 2):
         h = layers.ReLU()(h)
