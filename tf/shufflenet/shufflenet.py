@@ -3,9 +3,16 @@ from tensorflow.keras.models import Model
 from tensorflow.keras import backend as K
 
 
+def split_channels(inputs):
+    in_channels = K.int_shape(inputs)[-1]
+    inp = in_channels // 2
+    c_hat = layers.Lambda(lambda x: x[:, :, :, :inp])(inputs)
+    c = layers.Lambda(lambda x: x[:, :, :, inp:])(inputs)
+    return c_hat, c
+
+
 def shuffle_channels(inputs, groups):
-    print(K.int_shape(inputs))
-    batch, height, width, in_channels = K.int_shape(inputs)
+    height, width, in_channels = K.int_shape(inputs)[1:]
     group_channels = in_channels // groups
     h = K.reshape(inputs, (-1, height, width, groups, group_channels))
     h = K.permute_dimensions(h, (0, 1, 2, 4, 3))
@@ -13,9 +20,12 @@ def shuffle_channels(inputs, groups):
     return h
 
 def shuffle_block_v1(inputs, mid_filters, filters, kernel_size, groups, first_group, strides):
+    in_filters = K.int_shape(inputs)[-1]
+    assert in_filters < filters 
+    "mid_filters must be less than filters"
     if strides == 2 or strides == (2,  2):
         shortcut = layers.AveragePooling2D(3, 2, padding="same")(inputs)
-        out_filters = filters - K.int_shape(inputs)[-1]
+        out_filters = filters - in_filters 
     else:
         shortcut = inputs
         out_filters = filters
@@ -36,10 +46,15 @@ def shuffle_block_v1(inputs, mid_filters, filters, kernel_size, groups, first_gr
         h = layers.ReLU()(h)
     return h
 
-# inp, oup, *, group, first_group, mid_channels, ksize, stride
-def ShuffleNet(group=3, model_size="2.0x", num_class=1000, include_top=True, name="shuffleNet"):
+def ShuffleNet(group=3,
+               model_size="2.0x",
+               num_class=1000,
+               include_top=True,
+               stage_repeats = (4, 8, 4),
+               name="shuffleNet"):
+    assert len(stage_repeats) <=3 and all([isinstance(x, int) for x in stage_repeats])
+    "stage_repeats must be a list of positive integers with at most 3 members"
     inputs = layers.Input((224, 224, 3))
-    stage_repeats = [4, 8, 4]
     if group == 3:
         if model_size == '0.5x':
             stage_out_channels = [-1, 12, 120, 240, 480]
@@ -80,7 +95,7 @@ def ShuffleNet(group=3, model_size="2.0x", num_class=1000, include_top=True, nam
         h = layers.Softmax()(h)
     model = Model(inputs, h, name=name)
     return model
-        
+
     
     
 if __name__ == "__main__":
