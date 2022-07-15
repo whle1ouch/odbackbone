@@ -48,7 +48,7 @@ class MultiHeadAttention(nn.Module):
         if mask is None:
             attn_prob = F.softmax(torch.bmm(q, k.transpose(-1, -2)) / math.sqrt(head_dim), dim=-1) # sql_len * model_dim
         else:
-            additive_mask = mask.tile((bs * num_head, 1, 1))
+            additive_mask = mask.tile((num_head, 1, 1))
             attn_prob = F.softmax(torch.bmm(q, k.transpose(-1, -2)) / math.sqrt(head_dim) + additive_mask, dim=-1)
         
         out = torch.bmm(attn_prob, v)
@@ -75,32 +75,74 @@ class PatchMerging(nn.Nodule):
         return x 
     
     
-class SwinTransfomerBlock(nn.Module):
+class SuccessiveSwinTransfomerBlock(nn.Module):
     
-    def __init__(self, model_dim, num_head,  window_size, shift=False) -> None:
+    def __init__(self, model_dim, num_head,  window_size) -> None:
         super().__init__()
         
         self.window_size = window_size
-        self.shift = shift
         
         self.ln1 = nn.LayerNorm(model_dim)
-        self.msa = MultiHeadAttention(model_dim, num_head)
-        
+        self.wmsa = MultiHeadAttention(model_dim, num_head)
         self.ln2 = nn.LayerNorm(model_dim)
         self.linear = nn.Linear(model_dim, model_dim)
         
+        self.ln3 = nn.LayerNorm(model_dim)
+        self.swmsa = MultiHeadAttention(model_dim, num_head)
+        self.ln4 = nn.LayerNorm(model_dim)
+        self.linear = nn.Linear(model_dim, model_dim)
+        
+        
+        
     
     def forward(self, x):
-        window_size = self.window_size
         bs, patch_num, model_dim = x.shape
+        x = self.sequence2image(x)
         
         
-    def reshape_with_window(self, x):
+        
+    def sequence2image(self, x):
         window_size = self.window_size
         bs, patch_num, model_dim = x.shape
         patch_size = int(math.sqrt(patch_num))
-        x = x.transpose(1, 2).reshape((bs, model_dim, patch_size, patch_size))
-        x = F.unfold(x, (window_size, window_size), stride=(window_size, window_size))
+        window_num = patch_size // window_size
+       
+        x = x.reshape((bs, window_num, window_size, window_num, window_size, model_dim)).transpose(2, 3)
+        x = x.reshape((bs * window_num * window_num, window_size * window_size, model_dim))
         
+        return x
+    
+    
+    def sequence2shift(self, x):
+        window_size = self.window_size
+        bs, patch_num, model_dim = x.shape
+        patch_size = int(math.sqrt(patch_num))
+        shift_size = window_size // 2
+        window_num = patch_size // window_size
+        num_windows = window_num * window_num
+        num_patch_in_window = window_size * window_size
+        x = x.reshape((bs, patch_size, patch_size, model_dim))
+        x = torch.roll(x, (shift_size, shift_size), dims=(1, 2))
+        x = x.reshape((bs, window_num, window_size, window_num, window_size, model_dim)).transpose(2, 3)
+        x = x.reshape((bs * num_windows, num_patch_in_window, model_dim))
         
+        index_mat = torch.zeros(patch_size, patch_size)
+        for i in range(patch_size):
+            for j in range(patch_size):
+                row_times = (i + window_size // 2) // window_size
+                col_times = (j + window_size // 2) // window_size
+                index_mat[i][j] = row_times * (patch_size // window_size) + col_times + 1
+        index_mat = torch.roll(index_mat, (-shift_size, -shift_size), dims=(0, 1))
+        index_mat = index_mat.unsqueeze(0)
+        index_mat = index_mat.reshape((1, window_num, window_size, window_num, window_size)).transpose(2, 3)
         
+        c1 = index_mat.reshape((1, num_windows, num_patch_in_window)).unsqueeze(-1)
+        c1 = c1.tile(bs, 1, 1)
+        c2 = (c1 - c1.transpose(-1, -2))  == 0
+        c2 = c2.to(torch.float32)
+        mask = (1 - c2) * (1e-9)
+        mask = mask.reshape((bs * num_windows, num_patch_in_window, num_patch_in_window))
+        return x, mask
+
+if __name__ == "__main__":
+    ...
